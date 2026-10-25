@@ -1,0 +1,13 @@
+{
+  "name": "ruflo-lab",
+  "version": "1.0.0",
+  "description": "Ruflo ajan orkestrasyonunu elle denemek ve izlemek için küçük laboratuvar + gerçek bir Todo uygulaması",
+  "license": "MIT",
+  "private": true,
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "lab": "node src/ruflo-lab/server.js",
+    "todo": "node src/todo-app/server.js",
+    "test": "node --test tests/todo.test.js tests/lab.test.js"
+  }
+}

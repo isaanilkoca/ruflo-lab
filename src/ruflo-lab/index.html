@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ruflo Lab</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#1b1f24; --mut:#667085; --line:#e3e6ea; --acc:#4f46e5; --ok:#15803d; --bad:#b42318; --term:#0f1115; --termink:#d6e2f0; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#12141a; --card:#1a1d25; --ink:#e8eaee; --mut:#98a2b3; --line:#2a2e38; --acc:#818cf8; --ok:#4ade80; --bad:#f87171; --term:#0a0b0e; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 system-ui,sans-serif; }
+  header { padding:20px 16px 8px; max-width:1100px; margin:0 auto; }
+  h1 { margin:0; font-size:22px; } header p { margin:4px 0 0; color:var(--mut); }
+  main { max-width:1100px; margin:0 auto; padding:8px 16px 40px; display:grid; gap:16px; grid-template-columns: minmax(0,1fr); }
+  @media (min-width: 900px) { main { grid-template-columns: 1fr 1fr; align-items:start; } #out { position:sticky; top:12px; } }
+  section { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:12px; }
+  h2 { margin:0 0 10px; font-size:15px; }
+  .item { border-top:1px solid var(--line); padding:10px 0; } .item:first-of-type { border-top:0; }
+  .item b { font-size:14px; } .item small { display:block; color:var(--mut); margin-bottom:6px; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:end; }
+  label { display:flex; flex-direction:column; font-size:12px; color:var(--mut); flex:1 1 140px; }
+  input { font:inherit; padding:6px 8px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--ink); }
+  button { font:inherit; padding:7px 14px; border:0; border-radius:8px; background:var(--acc); color:#fff; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:wait; }
+  #out { background:var(--term); color:var(--termink); border-radius:12px; padding:14px; min-height:200px; }
+  #out .meta { font-size:12px; color:#8b97a7; margin-bottom:8px; word-break:break-all; }
+  #out .ok { color:var(--ok); } #out .bad { color:var(--bad); }
+  pre { margin:0; white-space:pre-wrap; word-break:break-word; font:13px/1.45 ui-monospace,Menlo,monospace; max-height:70vh; overflow:auto; }
+  .mon { grid-column:1/-1; } .mon .grid { display:grid; gap:10px; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); }
+  .mon pre { background:var(--term); color:var(--termink); padding:10px; border-radius:8px; max-height:220px; font-size:12px; }
+  .mon h3 { margin:0 0 4px; font-size:13px; } .mon .bar { display:flex; gap:10px; align-items:center; margin-bottom:10px; color:var(--mut); font-size:13px; }
+  #log { margin-top:14px; font-size:12px; color:#8b97a7; }
+</style>
+</head>
+<body>
+<header><h1>Ruflo Lab</h1><p>Her buton gerçek bir ruflo komutu çalıştırır. Sonuç sağ tarafta görünür.</p></header>
+<main>
+  <section class="mon"><h2>Canlı Monitor</h2>
+    <div class="bar"><button id="mrefresh">Yenile</button><label style="flex:none;flex-direction:row;gap:6px;align-items:center"><input type="checkbox" id="mauto"> 10 sn'de bir otomatik</label><span id="mtime"></span></div>
+    <div class="grid" id="mgrid"></div></section>
+  <div id="menu"></div>
+  <div id="out"><div class="meta">Henüz komut çalıştırılmadı. Soldan bir buton seçin; ilk çalıştırma birkaç saniye sürebilir.</div><pre></pre><div id="log"></div></div>
+</main>
+<script>
+const out = document.getElementById('out'), pre = out.querySelector('pre'), meta = out.querySelector('.meta'), log = document.getElementById('log');
+const history = [];
+function el(tag, attrs = {}, ...kids) {
+  const e = Object.assign(document.createElement(tag), attrs);
+  kids.forEach(k => e.append(k)); return e;
+}
+async function run(item, box, btn) {
+  const inputs = {};
+  box.querySelectorAll('input').forEach(i => inputs[i.name] = i.value);
+  btn.disabled = true; meta.textContent = 'Çalışıyor: ' + item.label + '…'; pre.textContent = '';
+  try {
+    const r = await (await fetch('/api/run', { method: 'POST', body: JSON.stringify({ id: item.id, inputs }) })).json();
+    meta.innerHTML = '';
+    meta.append(el('span', { className: r.ok ? 'ok' : 'bad', textContent: r.ok ? '✓ Başarılı ' : '✗ Hata ' }), r.ms + ' ms · ' + r.cmd);
+    pre.textContent = r.output || '(çıktı yok)';
+    history.unshift((r.ok ? '✓ ' : '✗ ') + item.label); log.textContent = 'Son: ' + history.slice(0, 8).join(' · ');
+  } catch (e) { meta.textContent = 'Sunucuya ulaşılamadı: ' + e.message; }
+  btn.disabled = false;
+}
+let mtimer;
+async function monitor() {
+  const btn = document.getElementById('mrefresh'); btn.disabled = true;
+  try {
+    const cards = await (await fetch('/api/monitor')).json();
+    const grid = document.getElementById('mgrid'); grid.replaceChildren();
+    cards.forEach(c => grid.append(el('div', {}, el('h3', { textContent: (c.ok ? '✓ ' : '✗ ') + c.title }), el('pre', { textContent: c.output || '(boş)' }))));
+    document.getElementById('mtime').textContent = 'Güncellendi: ' + new Date().toLocaleTimeString('tr-TR');
+  } catch (e) { document.getElementById('mtime').textContent = 'Hata: ' + e.message; }
+  btn.disabled = false;
+}
+document.getElementById('mrefresh').onclick = monitor;
+document.getElementById('mauto').onchange = e => { clearInterval(mtimer); if (e.target.checked) mtimer = setInterval(monitor, 10000); };
+monitor();
+fetch('/api/catalog').then(r => r.json()).then(groups => {
+  const menu = document.getElementById('menu');
+  groups.forEach(g => {
+    const sec = el('section', {}, el('h2', { textContent: g.group }));
+    g.items.forEach(item => {
+      const box = el('div', { className: 'item' }, el('b', { textContent: item.label }), el('small', { textContent: item.desc }));
+      const row = el('div', { className: 'row' });
+      (item.fields || []).forEach(fl => row.append(el('label', { textContent: fl.label }, el('input', { name: fl.name, value: fl.def }))));
+      const btn = el('button', { textContent: 'Çalıştır' });
+      btn.onclick = () => run(item, box, btn);
+      row.append(btn); box.append(row); sec.append(box);
+    });
+    menu.append(sec);
+  });
+});
+</script>
+</body>
+</html>

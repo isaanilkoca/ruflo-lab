@@ -1,0 +1,15 @@
+# Ruflo local secrets and runtime data
+.env
+.env.local
+.env.*.local
+.claude-flow/data/
+.claude-flow/logs/
+.claude-flow/sessions/
+
+# Ruflo çalışma durumu (makineye özel)
+.swarm/
+.claude/
+.mcp.json
+ruvector.db
+src/todo-app/data/
+node_modules/
